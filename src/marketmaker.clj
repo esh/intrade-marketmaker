@@ -31,16 +31,20 @@
 								(= 'Buy side)
 								(or
 									(> outstanding-bids qty) 
-									(not (= (min
-										(+ tob-bid spread skew)
-										(- tob-offer tradeservice/*tick-size*))))))
+									(not (=
+										price
+										(min
+											(+ tob-bid (- spread) skew)
+											(- tob-offer tradeservice/*tick-size*))))))
 							(and
 								(= 'Sell side)
 								(or
 									(> outstanding-offers qty)
-									(not (= (max
-										(+ tob-offer (- spread) skew)
-										(+ tob-bid tradeservice/*tick-size*)))))))
+									(not (=
+										price
+										(max
+											(+ tob-offer spread skew)
+											(+ tob-bid tradeservice/*tick-size*)))))))
 					(tradeservice/cancel-order %)))
 			open-orders)))
 	(let [tob-bid (get (first (get @(tradeservice/get-quote contract-id) :bids)) :price)
@@ -57,7 +61,7 @@
 					(tradeservice/send-order
 						:contract-id contract-id
 						:side 'Buy
-						:price (min (+ tob-bid spread skew) (- tob-offer tradeservice/*tick-size*)) 
+						:price (min (+ tob-bid (- spread) skew) (- tob-offer tradeservice/*tick-size*)) 
 						:qty (- qty outstanding-bids)
 						:tif 'GFS))
 			(if (and
@@ -68,6 +72,6 @@
 					(tradeservice/send-order
 						:contract-id contract-id
 						:side 'Sell
-						:price (max (+ tob-offer (- spread) skew) (+ tob-bid tradeservice/*tick-size*)) 
+						:price (max (+ tob-offer spread skew) (+ tob-bid tradeservice/*tick-size*)) 
 						:qty (- qty outstanding-offers)
 						:tif 'GFS)))))))
