@@ -13,8 +13,10 @@
 		#(get @% :qty)
 		(filter #(= side (get @% :side)) open-orders))))
 
-(defn maintain-orders [contract-id bids offers qty skew spread sides]
-	(let [open-orders (get-open-orders contract-id)
+(defn maintain-orders [contract-id qty skew spread sides]
+	(let [bids (get @(tradeservice/get-quote contract-id) :bids)
+				offers (get @(tradeservice/get-quote contract-id) :offers)
+				open-orders (get-open-orders contract-id)
 				outstanding-bids (outstanding 'Buy open-orders)
 			  outstanding-offers (outstanding 'Sell open-orders)]
 		(doall (pmap
@@ -34,5 +36,23 @@
 									(> outstanding-offers qty)
 									(not (= (get (first offers) :price))))))
 					(tradeservice/cancel-order %)))
-			open-orders))
-	))
+			open-orders)))
+	(let [tob-bid (get (first (get @(tradeservice/get-quote contract-id) :bids)) :price)
+			  tob-offer (get (first (get @(tradeservice/get-quote contract-id) :offers)) :price)
+			  open-orders (get-open-orders contract-id)
+			  outstanding-bids (outstanding 'Buy open-orders)
+			  outstanding-offers (outstanding 'Sell open-orders)]
+		(if (and (< outstanding-bids qty) (not (nil? tob-bid)) (not (nil? tob-offer)))
+				(tradeservice/send-order
+					:contract-id contract-id
+					:side 'Buy
+					:price (min (+ tob-bid spread skew) (- tob-offer tradeservice/*tick-size*)) 
+					:qty (- qty outstanding-bids)
+					:tif 'GFS))
+		(if (and (< outstanding-offers qty) (not (nil? tob-bid)) (not (nil? tob-offer)))
+				(tradeservice/send-order
+					:contract-id contract-id
+					:side 'Sell
+					:price (max (+ tob-offer (- spread) skew) (+ tob-bid tradeservice/*tick-size*)) 
+					:qty (- qty outstanding-offers)
+					:tif 'GFS))))
