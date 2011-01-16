@@ -14,8 +14,8 @@
 		(filter #(= side (get @% :side)) open-orders))))
 
 (defn maintain-orders [contract-id qty skew spread sides]
-	(let [bids (get @(tradeservice/get-quote contract-id) :bids)
-				offers (get @(tradeservice/get-quote contract-id) :offers)
+	(let [tob-bid (get (first (get @(tradeservice/get-quote contract-id) :bids)) :price)
+			  tob-offer (get (first (get @(tradeservice/get-quote contract-id) :offers)) :price)
 				open-orders (get-open-orders contract-id)
 				outstanding-bids (outstanding 'Buy open-orders)
 			  outstanding-offers (outstanding 'Sell open-orders)]
@@ -24,17 +24,23 @@
 						 side (get order :side)
 						 price (get order :price)]
 				(when
-					(or (= 0 (count bids))
-							(= 0 (count offers))
+					(or (not (nil? tob-bid))
+							(not (nil? tob-offer))
 							(not (some #{side} sides))
-							(and (= 'Buy side)
+							(and
+								(= 'Buy side)
 								(or
 									(> outstanding-bids qty) 
-									(not (= (get (first bids) :price)))))
-							(and (= 'Sell side)
+									(not (= (min
+										(+ tob-bid spread skew)
+										(- tob-offer tradeservice/*tick-size*))))))
+							(and
+								(= 'Sell side)
 								(or
 									(> outstanding-offers qty)
-									(not (= (get (first offers) :price))))))
+									(not (= (max
+										(+ tob-offer (- spread) skew)
+										(+ tob-bid tradeservice/*tick-size*)))))))
 					(tradeservice/cancel-order %)))
 			open-orders)))
 	(let [tob-bid (get (first (get @(tradeservice/get-quote contract-id) :bids)) :price)
